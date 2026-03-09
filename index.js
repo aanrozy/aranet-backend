@@ -151,14 +151,14 @@ app.post('/topics', async (req, res) => {
     if (lastPost) {
       const ttl = await redis.ttl(rateLimitKey);
       return res.status(429).json({
-        error: `Tolong tunggu ${ttl} detik sebelum menambah topik lagi.`,
+        error: `Rate limit exceeded. Another user has just created a topic; please wait ${ttl} seconds.`,
       });
     }
 
     await redis.sadd('topics:list', topic);
     await redis.set(`topic:${topic}`, '1', { ex: 86400 });
 
-    await redis.set(rateLimitKey, '1', { ex: 3600 });
+    await redis.set(rateLimitKey, '1', { ex: 60 });
 
     res.json({ success: true, message: 'Topic created' });
   } catch (error) {
@@ -373,7 +373,7 @@ dmNamespace.on('connection', async (socket) => {
       const { conversationId, text, repliedToMessageId, forwardedFromMessageId, forwardedFromConversationId } = data;
 
       // Rate limiting check
-      const canSend = await redisService.checkRateLimit(socket.userId, 'send_message', 30, 60);
+      const canSend = await redisService.checkRateLimit(socket.userId, 'send_message', 30, 60); // Tetap 60 detik (1 menit)
       if (!canSend) {
         socket.emit('error', { message: 'Too many messages. Please slow down.' });
         return;
